@@ -1,148 +1,77 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>TJC Editor</title>
-
-<style>
-body {
-    margin: 0;
-    background: #0f172a;
-    color: #e2e8f0;
-    font-family: monospace;
-}
-
-header {
-    padding: 10px;
-    background: #020617;
-    border-bottom: 1px solid #1e293b;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-button {
-    background: #38bdf8;
-    border: none;
-    padding: 8px 15px;
-    cursor: pointer;
-    border-radius: 6px;
-    font-weight: bold;
-}
-
-button:hover {
-    background: #0ea5e9;
-}
-
-#editor {
-    width: 100%;
-    height: 65vh;
-    background: #020617;
-    color: #38bdf8;
-    border: none;
-    outline: none;
-    padding: 15px;
-    font-size: 15px;
-    resize: none;
-    line-height: 1.5;
-}
-
-#output {
-    padding: 15px;
-    background: #000;
-    color: #22c55e;
-    height: 25vh;
-    overflow-y: auto;
-    border-top: 1px solid #1e293b;
-}
-</style>
+  <title>TJC Editor</title>
+  <style>
+    body { font-family: monospace; background:#111; color:#0f0; padding:20px; }
+    textarea { width:100%; height:300px; background:#000; color:#0f0; padding:10px; }
+    button { padding:10px; margin-top:10px; }
+    pre { background:#000; padding:10px; margin-top:10px; }
+  </style>
 </head>
-
 <body>
 
-<header>
-    <h3>🚀 TJC Editor</h3>
-    <button onclick="runCode()">▶ Run</button>
-</header>
+<h2>TJC Editor ⚡</h2>
 
-<textarea id="editor">
-x = 1
+<input type="file" id="fileInput"><br><br>
 
-loop#x(1,9):
-    print#x
+<textarea id="editor"></textarea><br>
 
-print#x
-</textarea>
+<button onclick="runCode()">Run</button>
 
-<div id="output">Output will appear here...</div>
+<pre id="output"></pre>
 
 <script src="interpreter.js"></script>
 
 <script>
-let indent = 0;
-const editor = document.getElementById("editor");
+let editor = document.getElementById("editor");
 
-// ======================
-// EDITOR BEHAVIOUR
-// ======================
+// 🔥 Auto-indent logic
 editor.addEventListener("keydown", function(e) {
 
-    // ENTER → auto indent
-    if (e.key === "Enter") {
-        e.preventDefault();
+  if (e.key === "Enter") {
+    e.preventDefault();
 
-        let start = editor.selectionStart;
-        let value = editor.value;
+    let lines = editor.value.split("\n");
+    let lastLine = lines[lines.length - 1];
 
-        let before = value.substring(0, start);
-        let after = value.substring(start);
+    let indent = (lastLine.match(/^\s*/) || [""])[0];
 
-        let indentSpaces = "    ".repeat(indent);
-
-        editor.value = before + "\n" + indentSpaces + after;
-        editor.selectionStart = editor.selectionEnd = start + 1 + indentSpaces.length;
+    if (lastLine.trim().endsWith(":")) {
+      indent += "    ";
     }
 
-    // ":" → increase indent
-    if (e.key === ":") {
-        indent++;
+    if (lastLine.trim() === "#") {
+      indent = indent.slice(0, -4);
     }
 
-    // ";" → decrease indent (your shortcut)
-    if (e.key === ";") {
-        indent = Math.max(0, indent - 1);
-    }
-
-    // TAB → manual indent
-    if (e.key === "Tab") {
-        e.preventDefault();
-        let start = editor.selectionStart;
-
-        editor.value =
-            editor.value.substring(0, start) +
-            "    " +
-            editor.value.substring(start);
-
-        editor.selectionStart = editor.selectionEnd = start + 4;
-    }
+    editor.value += "\n" + indent;
+  }
 });
 
-
-// ======================
-// RUN BUTTON
-// ======================
+// 🔥 Run code
 function runCode() {
-    const code = editor.value;
-    const outputDiv = document.getElementById("output");
+  let code = editor.value;
 
-    try {
-        // runTJC must come from interpreter.js
-        let result = runTJC(code);
-        outputDiv.textContent = result;
-    } catch (err) {
-        outputDiv.textContent = "Error: " + err;
-    }
+  try {
+    let result = runTJC(code);
+    document.getElementById("output").textContent = result.join("\n");
+  } catch (e) {
+    document.getElementById("output").textContent = "Error: " + e.message;
+  }
 }
+
+// 🔥 Load .tjc file
+document.getElementById("fileInput").addEventListener("change", function(e) {
+  const file = e.target.files[0];
+  const reader = new FileReader();
+
+  reader.onload = function(event) {
+    editor.value = event.target.result;
+  };
+
+  reader.readAsText(file);
+});
 </script>
 
 </body>
