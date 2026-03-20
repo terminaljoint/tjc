@@ -1,1 +1,36 @@
+<!Doctype html>
+<html>
+  
+<textarea id="editor"></textarea>
 
+<script>
+const editor = document.getElementById("editor");
+let indent = 0;
+
+editor.addEventListener("keydown", function(e) {
+
+    if (e.key === "Enter") {
+        e.preventDefault();
+
+        let value = editor.value;
+        let start = editor.selectionStart;
+
+        let before = value.substring(0, start);
+        let after = value.substring(start);
+
+        let indentSpaces = "    ".repeat(indent);
+
+        editor.value = before + "\n" + indentSpaces + after;
+        editor.selectionStart = editor.selectionEnd = start + 1 + indentSpaces.length;
+    }
+
+    if (e.key === ":") {
+        indent++;
+    }
+
+    if (e.key === ";") {
+        indent = Math.max(0, indent - 1);
+    }
+});
+</script>
+  </html>
