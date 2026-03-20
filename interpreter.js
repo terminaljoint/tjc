@@ -1,24 +1,24 @@
 // ===============================
-// TJC Interpreter v4 (FINAL CORE)
-// Math Expressions + CLI + Browser
+// TJC Interpreter (FINAL FIXED)
 // ===============================
 
 function runTJC(code) {
 
-  // 🔥 1. Remove ''' comments '''
+  // 🔥 Remove comments
   code = code.replace(/'''[\s\S]*?'''/g, "");
 
-  let tokens = code
-    .replace(/\n/g, ";")
-    .split(";")
-    .map(t => t.trim())
-    .filter(t => t.length > 0);
+  // 🔥 Split into lines (IMPORTANT: not using ;)
+  let lines = code
+    .split("\n")
+    .map(l => l.trim())
+    .filter(l => l.length > 0);
 
+  let i = 0;
   let scopeStack = [{}];
 
   function getVar(name) {
-    for (let i = scopeStack.length - 1; i >= 0; i--) {
-      if (name in scopeStack[i]) return scopeStack[i][name];
+    for (let j = scopeStack.length - 1; j >= 0; j--) {
+      if (name in scopeStack[j]) return scopeStack[j][name];
     }
     return 0;
   }
@@ -28,7 +28,7 @@ function runTJC(code) {
   }
 
   // ===============================
-  // 🔥 MATH EXPRESSION ENGINE
+  // 🔥 EXPRESSION ENGINE
   // ===============================
   function evalExpr(expr) {
     expr = expr.trim();
@@ -45,65 +45,43 @@ function runTJC(code) {
     }
   }
 
-  let i = 0;
-
   // ===============================
-  // 🔧 PARSE BLOCK INTO LINES
+  // 🔧 EXECUTE BLOCK
   // ===============================
-  function collectBlock() {
-    let lines = [];
+  function executeBlock() {
+    let output = [];
 
-    while (i < tokens.length) {
-      let line = tokens[i];
+    while (i < lines.length) {
+      let line = lines[i];
 
+      // 🔴 END BLOCK
       if (line === "#") {
         i++;
-        return lines;
+        return output;
       }
 
-      lines.push(line);
-      i++;
-    }
-
-    return lines;
-  }
-
-  // ===============================
-  // 🔧 EXECUTION ENGINE
-  // ===============================
-  function runBlock(lines, output) {
-    let j = 0;
-
-    while (j < lines.length) {
-      let line = lines[j];
-
-      // LOOP
+      // ================= LOOP =================
       if (line.startsWith("loop")) {
         let match = line.match(/loop\s+(\w+)\s*\((.+),(.+)\):/);
-        if (!match) throw Error("Invalid loop syntax: " + line);
+        if (!match) throw Error("Invalid loop: " + line);
 
         let varName = match[1];
         let start = evalExpr(match[2]);
         let end = evalExpr(match[3]);
 
-        j++;
-
-        let inner = [];
-        let depth = 1;
-
-        while (depth > 0 && j < lines.length) {
-          if (lines[j] === "#") depth--;
-          else if (lines[j].endsWith(":")) depth++;
-
-          if (depth > 0) inner.push(lines[j]);
-          j++;
-        }
+        i++;
+        let bodyStart = i;
+        let body = executeBlock();
 
         for (let v = start; v <= end; v++) {
           scopeStack.push({});
           setVar(varName, v);
 
-          runBlock(inner, output);
+          // re-run body
+          let tempI = 0;
+          while (tempI < body.length) {
+            interpretLine(body[tempI++], output);
+          }
 
           scopeStack.pop();
         }
@@ -111,7 +89,7 @@ function runTJC(code) {
         continue;
       }
 
-      // IF / ELIF / ELSE
+      // ================= IF =================
       if (line.startsWith("if")) {
         let executed = false;
 
@@ -121,44 +99,24 @@ function runTJC(code) {
           if (condMatch) {
             let cond = condMatch[2];
 
-            j++;
-
-            let inner = [];
-            let depth = 1;
-
-            while (depth > 0 && j < lines.length) {
-              if (lines[j] === "#") depth--;
-              else if (lines[j].endsWith(":")) depth++;
-
-              if (depth > 0) inner.push(lines[j]);
-              j++;
-            }
+            i++;
+            let block = executeBlock();
 
             if (!executed && evalExpr(cond)) {
               executed = true;
-              runBlock(inner, output);
+              block.forEach(l => interpretLine(l, output));
             }
 
-            line = lines[j];
+            line = lines[i];
             continue;
           }
 
           if (line && line.startsWith("else:")) {
-            j++;
-
-            let inner = [];
-            let depth = 1;
-
-            while (depth > 0 && j < lines.length) {
-              if (lines[j] === "#") depth--;
-              else if (lines[j].endsWith(":")) depth++;
-
-              if (depth > 0) inner.push(lines[j]);
-              j++;
-            }
+            i++;
+            let block = executeBlock();
 
             if (!executed) {
-              runBlock(inner, output);
+              block.forEach(l => interpretLine(l, output));
             }
           }
 
@@ -168,22 +126,27 @@ function runTJC(code) {
         continue;
       }
 
+      // ================= NORMAL LINE =================
       interpretLine(line, output);
-      j++;
+      i++;
     }
+
+    return output;
   }
 
   // ===============================
-  // 🔧 LINE EXECUTION
+  // 🔧 EXECUTE SINGLE LINE
   // ===============================
   function interpretLine(line, output) {
 
+    // PRINT
     if (line.startsWith("print")) {
       let expr = line.replace("print", "").trim();
       output.push(evalExpr(expr));
       return;
     }
 
+    // MULTI ASSIGN
     if (line.includes(",")) {
       line.split(",").forEach(p => {
         let [k, v] = p.split("=");
@@ -192,6 +155,7 @@ function runTJC(code) {
       return;
     }
 
+    // SINGLE ASSIGN
     if (line.includes("=")) {
       let [k, v] = line.split("=");
       setVar(k.trim(), evalExpr(v));
@@ -199,15 +163,7 @@ function runTJC(code) {
     }
   }
 
-  // ===============================
-  // 🚀 RUN
-  // ===============================
-  let lines = collectBlock();
-  let output = [];
-
-  runBlock(lines, output);
-
-  return output;
+  return executeBlock();
 }
 
 // ===============================
