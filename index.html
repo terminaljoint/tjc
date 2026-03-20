@@ -1,19 +1,94 @@
-<!Doctype html>
-<html>
-  
-<textarea id="editor"></textarea>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TJC Editor</title>
+
+<style>
+body {
+    margin: 0;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-family: monospace;
+}
+
+header {
+    padding: 10px;
+    background: #020617;
+    border-bottom: 1px solid #1e293b;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+button {
+    background: #38bdf8;
+    border: none;
+    padding: 8px 15px;
+    cursor: pointer;
+    border-radius: 6px;
+    font-weight: bold;
+}
+
+button:hover {
+    background: #0ea5e9;
+}
+
+#editor {
+    width: 100%;
+    height: 60vh;
+    background: #020617;
+    color: #38bdf8;
+    border: none;
+    outline: none;
+    padding: 15px;
+    font-size: 15px;
+    resize: none;
+    line-height: 1.5;
+}
+
+#output {
+    padding: 15px;
+    background: #000;
+    color: #22c55e;
+    height: 25vh;
+    overflow-y: auto;
+    border-top: 1px solid #1e293b;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <h3>🚀 TJC Editor</h3>
+    <button onclick="runCode()">▶ Run</button>
+</header>
+
+<textarea id="editor">
+{
+    x = 1
+    loop#x(1,9):
+        print#x
+    #n
+    print#x
+}
+</textarea>
+
+<div id="output">Output will appear here...</div>
 
 <script>
-const editor = document.getElementById("editor");
 let indent = 0;
+const editor = document.getElementById("editor");
 
 editor.addEventListener("keydown", function(e) {
 
+    // ENTER → auto indent
     if (e.key === "Enter") {
         e.preventDefault();
 
-        let value = editor.value;
         let start = editor.selectionStart;
+        let value = editor.value;
 
         let before = value.substring(0, start);
         let after = value.substring(start);
@@ -24,13 +99,135 @@ editor.addEventListener("keydown", function(e) {
         editor.selectionStart = editor.selectionEnd = start + 1 + indentSpaces.length;
     }
 
+    // ":" → increase indent
     if (e.key === ":") {
         indent++;
     }
 
+    // ";" → decrease indent
     if (e.key === ";") {
         indent = Math.max(0, indent - 1);
     }
+
+    // TAB → manual indent
+    if (e.key === "Tab") {
+        e.preventDefault();
+        let start = editor.selectionStart;
+        editor.value =
+            editor.value.substring(0, start) +
+            "    " +
+            editor.value.substring(start);
+
+        editor.selectionStart = editor.selectionEnd = start + 4;
+    }
 });
+
+
+// =====================
+// TJC INTERPRETER
+// =====================
+
+function runCode() {
+    const code = editor.value;
+    const outputDiv = document.getElementById("output");
+
+    try {
+        let result = runTJC(code);
+        outputDiv.textContent = result;
+    } catch (err) {
+        outputDiv.textContent = "Error: " + err;
+    }
+}
+
+function runTJC(code) {
+    let lines = code.split("\n");
+    let output = "";
+    let scopeStack = [{}];
+
+    function getVar(name) {
+        for (let i = scopeStack.length - 1; i >= 0; i--) {
+            if (name in scopeStack[i]) return scopeStack[i][name];
+        }
+        return 0;
+    }
+
+    function setVar(name, value) {
+        scopeStack[scopeStack.length - 1][name] = value;
+    }
+
+    function getIndent(line) {
+        return line.match(/^ */)[0].length / 4;
+    }
+
+    function executeBlock(startIndex, currentIndent) {
+        let i = startIndex;
+
+        while (i < lines.length) {
+            let line = lines[i].trim();
+            if (line === "") {
+                i++;
+                continue;
+            }
+
+            let indentLevel = getIndent(lines[i]);
+
+            if (indentLevel < currentIndent) break;
+
+            // NEWLINE
+            if (line === "#n") {
+                output += "\n";
+                i++;
+                continue;
+            }
+
+            // PRINT
+            if (line.startsWith("print#")) {
+                let varName = line.replace("print#", "").trim();
+                output += getVar(varName) + " ";
+                i++;
+                continue;
+            }
+
+            // ASSIGNMENT
+            if (line.includes("=")) {
+                let [name, val] = line.split("=");
+                setVar(name.trim(), parseInt(val.trim()));
+                i++;
+                continue;
+            }
+
+            // LOOP
+            if (line.startsWith("loop#")) {
+                let match = line.match(/loop#(\w+)\((\d+),(\d+)\):/);
+                if (!match) throw "Invalid loop syntax";
+
+                let varName = match[1];
+                let start = parseInt(match[2]);
+                let end = parseInt(match[3]);
+
+                for (let v = start; v <= end; v++) {
+                    scopeStack.push({});
+                    setVar(varName, v);
+
+                    i = executeBlock(i + 1, indentLevel + 1);
+
+                    scopeStack.pop();
+                }
+
+                continue;
+            }
+
+            i++;
+        }
+
+        return i;
+    }
+
+    executeBlock(0, 0);
+
+    return output.trim();
+}
 </script>
-  </html>
+
+</body>
+</html>
